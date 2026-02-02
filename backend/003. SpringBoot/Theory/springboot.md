@@ -886,7 +886,7 @@ public class SchedulerConfig implements SchedulingConfigurer {
 ### 101. How would you handle inter-service communication in a microservice architecture using springboot?
 
 - For simple and direct communication, I would use RestTemplate, which allows services to send requests and receive
-  responses like a two way conversation.
+  responses like a two-way conversation.
 - For more complex communication, I would use Feign, which is a declarative web service client. It allows you to define
   interfaces and annotations to describe your service interactions, and Feign will handle the rest, including making the
   HTTP requests and parsing the responses.
@@ -917,3 +917,5 @@ public class SchedulerConfig implements SchedulingConfigurer {
 - We can also customize cache behaviour with annotations like '@CacheEvict' and '@CachePut'
 - We can Spring provided cache manager implementations like ConcurrentMapCacheManager, CaffeineCacheManager, etc.
 - We can also use customized cache providers like (EhCache or HazelCast or Redis).
+
+### 103. 
