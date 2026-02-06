@@ -109,57 +109,141 @@
 
 ## 1.1 What problem does Hibernate solve compared to JDBC?
 
+- Hibernate solves the impedance mismatch between Java objects and relational tables. With JDBC, you manually write SQL,
+  handle result sets, and map rows to objects. Hibernate automates this mapping, manages transactions, caching, and
+  reduces boilerplate. It also provides portability across databases, while JDBC ties you to vendor-specific SQL.
+
 ## 1.2 What is ORM and why is it risky in banking systems if misunderstood?
+
+- ORM (Object-Relational Mapping) maps Java objects to database tables. In banking, misuse can be risky—wrong mappings
+  or lazy loading can cause inconsistent balances, performance bottlenecks, or even double debits. If developers treat
+  ORM as a “black box,” they may overlook SQL behavior, leading to compliance and financial risks.
 
 ## 1.3 Difference between Hibernate and JPA.
 
+- JPA is a specification (like an interface) defining ORM standards. Hibernate is an implementation of JPA, with extra
+  features beyond the spec. “JPA tells you what to do, Hibernate shows you how to do it.”
+
 ## 1.4 Why Spring Data JPA is a wrapper, not a replacement for Hibernate?
+
+- Spring Data JPA is not a replacement—it’s a convenience layer. It generates repositories, query methods, and reduces
+  boilerplate, but internally it still relies on Hibernate (or another JPA provider). Think of it as a productivity
+  wrapper, not a new ORM engine.
 
 ## 1.5 What are the costs of ORM abstraction?
 
+- ORM hides SQL, but abstraction comes at a cost: performance overhead, unexpected queries (N+1 problem), difficulty in
+  fine-tuning, and loss of control over execution plans. In banking, these costs can translate into slow transaction
+  processing or missed SLAs.
+
 ## 1.6 When should you avoid ORM and use native SQL in banking?
+
+- Use native SQL when performance, precision, or compliance is critical—like reconciliation jobs, reporting, or batch
+  salary credits. ORM is great for CRUD, but for complex joins, aggregations, or high-volume operations, native SQL
+  ensures predictability and efficiency.
 
 # 2. Entity Mapping Basics
 
 ## 2.1 Difference between @Entity, @Table, and @MappedSuperclass.
 
+- @Entity: Marks a class as a persistent entity.
+- @Table: Specifies the actual DB table name.
+- @MappedSuperclass: Provides reusable mappings (like audit fields) but isn’t a table itself.
+
 ## 2.2 How does Hibernate map Java objects to relational tables?
+
+- Hibernate uses metadata (annotations/XML) to map class fields to table columns. It translates object graphs into SQL
+  INSERT/UPDATE/DELETE statements and reconstructs objects from result sets.
 
 ## 2.3 What is a primary key and why is it critical in banking entities?
 
+- Primary keys uniquely identify rows. In banking, they prevent duplicate accounts or transactions. Without a reliable
+  PK, reconciliation and audit trails break down, risking financial integrity.
+
 ## 2.4 Difference between @Id, @EmbeddedId, and @IdClass.
+
+- @Id: Single-column primary key.
+- @EmbeddedId: Composite key using an embeddable object.
+- @IdClass: Composite key using a separate class.
+- In banking, composite keys are common for transaction IDs + account IDs.
 
 ## 2.5 Why UUID vs sequence-based IDs – which is safer in distributed banking?
 
+- UUIDs are safer in distributed systems since they avoid collisions across nodes. Sequences are faster and smaller but
+  require central coordination. In banking microservices, UUIDs often win for scalability, though sequences are better
+  for
+  ordered reporting.
+
 ## 2.6 How do you map legacy banking tables to entities?
+
+- Legacy banking tables may lack proper PKs or normalization. Hibernate allows mapping with @IdClass, custom column
+  names, and even views. Sometimes you need DTOs instead of entities to avoid breaking legacy constraints.
 
 # 3. Entity Lifecycle & Persistence Context
 
 ## 3.1 What are entity states (Transient, Persistent, Detached, Removed)?
 
+- Transient: Not yet persisted.
+- Persistent: Managed by Hibernate.
+- Detached: Exists but not tracked.
+- Removed: Scheduled for deletion.
+
 ## 3.2 What is Persistence Context and why does it matter?
+
+- It’s Hibernate’s first-level cache. It ensures that within a transaction, the same entity instance is reused, avoiding
+  duplicate queries and ensuring consistency.
 
 ## 3.3 How does Hibernate ensure first-level cache consistency?
 
+- Hibernate tracks entities in the persistence context. Any change is auto-detected (dirty checking) and synchronized
+  with the DB at flush/commit.
+
 ## 3.4 What happens when you modify a managed entity without calling save()?
+
+- If you change a managed entity, Hibernate auto-detects and updates it at flush—no need to call save(). This is
+  convenient but can cause unintended updates.
 
 ## 3.5 What is dirty checking and why can it cause unexpected updates?
 
+- Dirty checking compares snapshots and updates changed fields. If you unintentionally modify an entity, Hibernate may
+  issue unexpected SQL, leading to performance or data integrity issues.
+
 ## 3.6 How does entity detachment affect transaction safety?
+
+- Detached entities aren’t tracked. Updates on them won’t persist unless re-attached. In banking, this can cause missed
+  updates or stale balances if developers assume they’re still managed.
 
 # 4. Transactions & Consistency
 
 ## 4.1 How does Hibernate integrate with Spring transactions?
 
+- Hibernate integrates with Spring via @Transactional. Spring manages transaction boundaries, while Hibernate ensures
+  entity changes are flushed at commit.
+
 ## 4.2 What happens if a transaction rolls back after entity changes?
+
+- If rollback occurs, all changes in persistence context are discarded. This prevents partial updates—critical in
+  banking to avoid half-completed transfers.
 
 ## 4.3 Difference between @Transactional at service vs repository layer.
 
+- put @Transactional at service layer. Repository methods are too granular; services define business boundaries like
+  “transfer funds.”
+
 ## 4.4 Why should transaction boundaries not be placed at controller level?
+
+- Controllers should remain stateless. Transactions at controller level risk long-lived sessions, lazy loading issues,
+  and poor scalability.
 
 ## 4.5 How does isolation level affect Hibernate behavior?
 
+- Isolation defines how concurrent transactions interact. For example, READ_COMMITTED avoids dirty reads, while
+  SERIALIZABLE ensures strict consistency but reduces throughput. Banking often requires stricter isolation.
+
 ## 4.6 Can Hibernate manage transactions across microservices? Why not?
+
+- Hibernate cannot manage distributed transactions across microservices. Each service owns its DB. For cross-service
+  consistency, you need Saga or 2PC patterns, not ORM.
 
 # 5. Fetching Strategies & Performance
 
