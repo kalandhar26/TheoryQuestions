@@ -1,75 +1,3 @@
-# How does kafka ensure message delivery (atleast once, atmost once and exacly once)?
-
-- **At-Most-Once:** A message is delivered zero or one time; it may be lost but never duplicated.
-- **How Kafka Achieves It:**
-    1. Producers send messages without waiting for broker acknowledgment (acks=0).
-    2. Consumers commit offsets immediately after receiving messages, before processing.
-- **Mechanism:** No retries on producer failure, and early offset commits on the consumer side risk message loss if
-  processing fails.
-- **Use Case:** Suitable for scenarios where losing a message is acceptable (e.g., non-critical logs).
-
-- **At-Least-Once:** A message is delivered one or more times; it’s never lost but may be duplicated.
-- **How Kafka Achieves It:**
-    1. Producers wait for broker acknowledgment (acks=1 or acks=all) and retry on failure.
-    2. Consumers process messages first, then commit offsets, ensuring no message is missed.
-    3. If a consumer fails after processing but before committing, it may reprocess the message, leading to duplicates.
-- **Mechanism:** Producer retries and delayed offset commits ensure delivery but risk duplicates.
-- **Use Case:** Used when message loss is unacceptable (e.g., financial transactions).
-
-- **Exactly-Once:**A message is delivered exactly once—no loss, no duplicates.
-- **How Kafka Achieves It:**
-
-    1. Introduced in Kafka 0.11 with idempotent producers and transactional messaging.
-    2. Idempotent Producer: Assigns a unique Producer ID (PID) and sequence number to each message. Brokers detect and
-       eliminate duplicates based on PID and sequence.
-    3. Transactional Consumer: Uses transactions to ensure atomic writes across multiple partitions. Consumers read only
-       committed messages (isolation.level=read_committed).
-
-- **Mechanism:** Producers use enable.idempotence=true and transactional APIs (transactional.id). Consumers commit
-  offsets transactionally, ensuring processing and offset commits are atomic.
-- **Use Case:** Critical for applications requiring strict consistency (e.g., payment systems).
-
-**Summary:**
-
-- at-most-once by skipping retries and committing early.
-- at-least-once with retries and delayed commits.
-- exactly-once using idempotent producers and transactional APIs to prevent loss and duplicates.
-
-# How do you test Kafka consumers in a real time scenario?
-
-- Embedded Kafka (for unit/integration tests):
-
-1. Use @EmbeddedKafka (Spring Kafka) to spin up a local Kafka broker.
-2. Test consumer logic without external dependencies.
-
-- Mocking with KafkaTemplate (for unit tests):
-
-1. Mock KafkaTemplate to simulate message production.
-2. Verify consumer behavior using @SpyBean or Mockito.
-
-- Test Containers (for near-real integration tests):
-
-1. Use Dockerized Kafka (Testcontainers) for a lightweight, real broker.
-2. Test end-to-end flow with actual Kafka networking.
-
-- Manual Testing (Real Kafka Cluster):
-
-1. Use tools like kafkacat or scripts to produce test messages.
-2. Monitor consumer logs/offsets (consumer-groups CLI).
-
-## How do we guarantee that only committed (i.e., fully acknowledged) records ever reach our listener when brokers or producers use transactions?
-
-- Use the consumer isolation-level setting
-
-```yaml
-spring:
-  kafka:
-    consumer:
-      isolation-level: read_committed # default = read_uncommitted
-```
-
----
-
 ## Question 1: What is Kafka and How Does It Work?
 
 ### Solution
@@ -267,7 +195,7 @@ public class ReliableKafkaProducer {
         }
     }
 }
-                         
+
 ```
 
 ## Question 5: What is the Role of `acks`, `retries`, and `linger.ms` in a Producer Config?
@@ -401,7 +329,7 @@ Tuning Kafka for high throughput involves optimizing producer, consumer, and bro
 - **Producer Tuning**:
     - Increase `batch.size` (e.g., 16384) to send larger batches.
     - Set `linger.ms` (e.g., 5) to batch messages before sending.
-    - Enable compressio an (`compression.type=gzip`) to reduce network load.
+    - Enable compression an (`compression.type=gzip`) to reduce network load.
 - **Consumer Tuning**:
     - Increase `max.poll.records` (e.g., 500) to fetch more messages per poll.
     - Set `fetch.min.bytes` (e.g., 1024) to wait for more data before polling.
@@ -1009,13 +937,32 @@ public class OrderProducer {
 - request.timeout.ms Timeout per request (default: 30s). Increase in slow networks.
 - delivery.timeout.ms Total time for send + retries (default: 2m). Must be > linger.ms + request.timeout.ms.
 - **key.serializer & value.serializer** Serializers for keys and values.
+
+| Config                                  | What it Controls                  | Options / Behavior                                                     | When to Use                                  |
+|-----------------------------------------|-----------------------------------|------------------------------------------------------------------------|----------------------------------------------|
+| `acks`                                  | Durability guarantee              | `0` = fire-and-forget<br>`1` = leader only<br>`all` = leader + all ISR | `1` for most apps<br>`all` for critical data |
+| `retries`                               | Retry attempts on failure         | `0` (default)<br>`Integer.MAX_VALUE` for critical apps                 | Required for reliability                     |
+| `retry.backoff.ms`                      | Delay between retries             | Default: `100ms`                                                       | Tune based on broker recovery                |
+| `bootstrap.servers`                     | Initial broker list               | Host:port list                                                         | Only for discovery, not full cluster         |
+| `buffer.memory`                         | Producer buffer size              | Default: `32MB`                                                        | Increase for high throughput                 |
+| `batch.size`                            | Batch size per partition          | Default: `16KB`                                                        | Increase to improve batching                 |
+| `linger.ms`                             | Batch wait time                   | Default: `0`                                                           | `5–100ms` for better throughput              |
+| `max.in.flight.requests.per.connection` | In-flight requests per connection | `1` = strict ordering<br>`5` (default) = higher throughput             | `1` for ordering + transactions              |
+| `compression.type`                      | Message compression               | `none`, `gzip`, `snappy`, `lz4`, `zstd`                                | `lz4` or `zstd` for most cases               |
+| `enable.idempotence`                    | Prevent duplicates                | `false` (default)<br>`true` = no duplicates                            | Must for financial / order flows             |
+| `transactional.id`                      | Enable transactions               | Unique ID per producer instance                                        | Required for exactly-once                    |
+| `request.timeout.ms`                    | Per-request timeout               | Default: `30s`                                                         | Increase on slow networks                    |
+| `delivery.timeout.ms`                   | Total send timeout                | Default: `2m`                                                          | Must be > linger + retries                   |
+| `key.serializer` / `value.serializer`   | Serialization                     | Byte conversion                                                        | Must match consumer deserializer             |
+
 - **producer tuning**
-  | Goal | Key Configs |
-  | ------------------ | -------------------------------------------------------------------------- |
-  | Maximum Durability | `acks=all`, `enable.idempotence=true`, `retries=MAX_INT` |
-  | Maximum Throughput | `acks=1`, `linger.ms=20`, `batch.size=64KB`, `compression.type=snappy/lz4` |
-  | Lowest Latency | `acks=0`, `linger.ms=0`, `batch.size=1` |
-  | Exactly-Once | `enable.idempotence=true`, `max.in.flight=1`, `acks=all` |
+
+| Goal               | Key Kafka Producer Configs                                                                   |
+|--------------------|----------------------------------------------------------------------------------------------|
+| Maximum Durability | `acks=all`, `min.insync.replicas>=2`, `enable.idempotence=true`, `retries=Integer.MAX_VALUE` |
+| Maximum Throughput | `acks=1`, `linger.ms=20`, `batch.size=65536`, `compression.type=snappy` or `lz4`             |
+| Lowest Latency     | `acks=0`, `linger.ms=0`, `batch.size=1`                                                      |
+| Exactly-Once       | `enable.idempotence=true`, `transactional.id=<unique>`, `acks=all`                           |
 
 ## Question 25: What are the key properties of Kafka Consumer?
 
@@ -1128,13 +1075,29 @@ public class OrderConsumer {
 - Sticky Minimizes reassignment. Best for frequent rebalances.
 - **key.deserializer & value.deserializer** Deserializers for keys and values.
 
+| Config                                    | What it Controls                      | Key Details / Behavior                                                                                     | When to Use                                                                                 |
+|-------------------------------------------|---------------------------------------|------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `group.id`                                | Consumer group identity               | Consumers in same group share partitions; each group maintains its own offsets                             | Scale processing or allow multiple apps to consume same topic independently                 |
+| `auto.offset.reset`                       | Offset behavior when no offset exists | `earliest` = replay from start<br>`latest` = consume new data only (default)<br>`none` = fail if no offset | `earliest` for analytics/replay<br>`latest` for real-time apps<br>`none` for strict control |
+| `enable.auto.commit`                      | Offset commit strategy                | `true` = periodic auto-commit (can cause duplicates)<br>`false` = manual commits (`commitSync/Async`)      | Disable for critical processing or exactly-once semantics                                   |
+| `max.poll.records`                        | Batch size per `poll()`               | Small = low latency<br>Large = high throughput                                                             | Tune based on processing speed                                                              |
+| `max.poll.interval.ms`                    | Consumer liveness                     | Max allowed time between polls before consumer is kicked out                                               | Increase if processing is slow                                                              |
+| `session.timeout.ms`                      | Failure detection time                | Time to detect consumer failure                                                                            | Increase for unstable networks                                                              |
+| `heartbeat.interval.ms`                   | Heartbeat frequency                   | Must be `< session.timeout.ms / 3`                                                                         | Too high → false rebalances                                                                 |
+| `fetch.min.bytes`                         | Minimum data fetched                  | Broker waits until this much data is available                                                             | Increase for throughput                                                                     |
+| `fetch.max.wait.ms`                       | Fetch wait time                       | Max wait if `fetch.min.bytes` not met                                                                      | Lower for latency-sensitive apps                                                            |
+| `isolation.level`                         | Transaction visibility                | `read_uncommitted` (default)<br>`read_committed`                                                           | Use `read_committed` with Kafka transactions                                                |
+| `partition.assignment.strategy`           | Partition distribution                | `Range` (default)<br>`RoundRobin`<br>`Sticky`                                                              | `Sticky` for rebalance-heavy systems                                                        |
+| `key.deserializer` / `value.deserializer` | Message deserialization               | Converts bytes → objects                                                                                   | Must match producer serialization                                                           |
+
 - **consumer Tuning**
-  | Goal | Key Configs |
-  | ----------------------- | --------------------------------------------------------------|
-  | Exactly-Once Processing | `enable.auto.commit=false`, `isolation.level=read_committed` |
-  | High Throughput | `fetch.min.bytes=1MB`, `max.poll.records=500` |
-  | Low Latency | `fetch.min.bytes=1`, `max.poll.records=1` |
-  | Avoid Rebalance Issues | `session.timeout.ms=30s`, `max.poll.interval.ms=5m` |
+
+| Goal                    | Key Kafka Consumer Configs                                   |
+|-------------------------|--------------------------------------------------------------|
+| Exactly-Once Processing | `enable.auto.commit=false`, `isolation.level=read_committed` |
+| High Throughput         | `fetch.min.bytes=1048576`, `max.poll.records=500`            |
+| Low Latency             | `fetch.min.bytes=1`, `max.poll.records=1`                    |
+| Avoid Rebalance Issues  | `session.timeout.ms=30000`, `max.poll.interval.ms=300000`    |
 
 =========================================================================================
 
@@ -1165,7 +1128,7 @@ public class OrderConsumer {
 - On the consumer side, there is a max.poll.interval.ms setting that controls how long a consumer can go without polling
   before it is considered failed and a rebalance is triggered.
 
-# How does kafka ensures fault tolerance?
+# How does kafka ensure fault tolerance?
 
 - Kafka ensures fault tolerance through data replication. Each partition is replicated across a configurable number of
   servers for fault tolerance.
@@ -1247,3 +1210,75 @@ public class OrderConsumer {
 - It is responsible for electing partition leaders and managing the distribution of partitions across brokers, and
   handling administrative operations like adding or removing topics.
 - If the controller fails, ZooKeeper helps elect a new controller among the brokers.
+
+# How does kafka ensure message delivery (atleast once, atmost once and exacly once)?
+
+- **At-Most-Once:** A message is delivered zero or one time; it may be lost but never duplicated.
+- **How Kafka Achieves It:**
+    1. Producers send messages without waiting for broker acknowledgment (acks=0).
+    2. Consumers commit offsets immediately after receiving messages, before processing.
+- **Mechanism:** No retries on producer failure, and early offset commits on the consumer side risk message loss if
+  processing fails.
+- **Use Case:** Suitable for scenarios where losing a message is acceptable (e.g., non-critical logs).
+
+- **At-Least-Once:** A message is delivered one or more times; it’s never lost but may be duplicated.
+- **How Kafka Achieves It:**
+    1. Producers wait for broker acknowledgment (acks=1 or acks=all) and retry on failure.
+    2. Consumers process messages first, then commit offsets, ensuring no message is missed.
+    3. If a consumer fails after processing but before committing, it may reprocess the message, leading to duplicates.
+- **Mechanism:** Producer retries and delayed offset commits ensure delivery but risk duplicates.
+- **Use Case:** Used when message loss is unacceptable (e.g., financial transactions).
+
+- **Exactly-Once:**A message is delivered exactly once—no loss, no duplicates.
+- **How Kafka Achieves It:**
+
+    1. Introduced in Kafka 0.11 with idempotent producers and transactional messaging.
+    2. Idempotent Producer: Assigns a unique Producer ID (PID) and sequence number to each message. Brokers detect and
+       eliminate duplicates based on PID and sequence.
+    3. Transactional Consumer: Uses transactions to ensure atomic writes across multiple partitions. Consumers read only
+       committed messages (isolation.level=read_committed).
+
+- **Mechanism:** Producers use enable.idempotence=true and transactional APIs (transactional.id). Consumers commit
+  offsets transactionally, ensuring processing and offset commits are atomic.
+- **Use Case:** Critical for applications requiring strict consistency (e.g., payment systems).
+
+**Summary:**
+
+- at-most-once by skipping retries and committing early.
+- at-least-once with retries and delayed commits.
+- exactly-once using idempotent producers and transactional APIs to prevent loss and duplicates.
+
+# How do you test Kafka consumers in a real time scenario?
+
+- Embedded Kafka (for unit/integration tests):
+
+1. Use @EmbeddedKafka (Spring Kafka) to spin up a local Kafka broker.
+2. Test consumer logic without external dependencies.
+
+- Mocking with KafkaTemplate (for unit tests):
+
+1. Mock KafkaTemplate to simulate message production.
+2. Verify consumer behavior using @SpyBean or Mockito.
+
+- Test Containers (for near-real integration tests):
+
+1. Use Dockerized Kafka (Testcontainers) for a lightweight, real broker.
+2. Test end-to-end flow with actual Kafka networking.
+
+- Manual Testing (Real Kafka Cluster):
+
+1. Use tools like kafkacat or scripts to produce test messages.
+2. Monitor consumer logs/offsets (consumer-groups CLI).
+
+## How do we guarantee that only committed (i.e., fully acknowledged) records ever reach our listener when brokers or producers use transactions?
+
+- Use the consumer isolation-level setting
+
+```yaml
+spring:
+  kafka:
+    consumer:
+      isolation-level: read_committed # default = read_uncommitted
+```
+
+---

@@ -1,6 +1,6 @@
-## 1. How do you design idempotent Rest API?
+## 1. How do you design idempotent Rest API? Why does it matter?
 
-## 2. How do you handle partial failures in chained APIs?
+## 2. How do you handle partial failures in chained APIs or in distributed systems?
 
 ## 3. What HttpStatus codes are commonly misused?
 
@@ -8,11 +8,11 @@
 
 ## 5. How do you prevent over-fetching?
 
-## 6. How do you version APIs without breaking clients?
+## 6. How do you version APIs without breaking clients? What are the trade-offs of each versioning strategy?
 
 ## 7. Where should mapping logic live - controller or service?
 
-## 8. How do you handle backward compatibility?
+## 8. How do you design a RESP API that remains backward compatible as it evolves?
 
 ## 9. How do you test APIs without mocking everything?
 
@@ -76,3 +76,35 @@ server.ssl.key-store=classpath:keystore.jks
 server.ssl.key-store-password={PASSWORD}
 server.ssl.key-store-type=JKS
 ```
+
+## 18. What factors influence your choice between REST, GraphQL and gRPC?
+
+## 19. How would you design pagination for large, frequently changing datasets?
+
+## 20. How do you structure error responses so they are useful for both developers and systems?
+
+## 21. How do you design an API to support rate limiting without breaking client experience?
+
+## 22. What security concerns do you consider first when designing a public API?
+
+## 23. How do you design an API that needs to scale to millions of requests per seconds?
+
+## 24. How do you decide between synchronous and asynchronous communication?
+
+## 25. How do you design APIs that support extensibility without frequent breaking changes?
+
+## 26. What roled do HTTP status codes play in communicating API behavior to clients?
+
+## 27. How would you design APIs to support multi tenant systems?
+
+## 28. How would you handle long-running operations in API design?
+
+## 29. How do you design APIs that are resilient to network latency and retries?
+
+## 30. How do you design an API contract between microservices owned by different teams?
+
+## 31. How do you approach API documentation so it stays accurate as the system evolves?
+
+## 32. How do you measure whether an API design is successful in production?
+
+## 33. What trade-offs do you consider when designing APIs for internal vs external consumers?
