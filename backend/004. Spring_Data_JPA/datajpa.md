@@ -44,13 +44,15 @@ public class User {
 
 ### 7. Difference between `@Id` and `@GeneratedValue`?
 
-- `@Id` defines the primary key field, while `@GeneratedValue` tells Hibernate to generate values automatically. You can
-  choose strategies like `AUTO`, `IDENTITY`, or `SEQUENCE` for auto-generation.
+- `@Id` defines the primary key field, while `@GeneratedValue` tells Hibernate to generate values automatically.
+- You can choose strategies like `AUTO`, `IDENTITY`, or `SEQUENCE` for auto-generation.
 
 ### 8. What are the different strategies for `@GeneratedValue`?
 
-- `AUTO` lets Hibernate pick the best strategy. `IDENTITY` uses auto-increment columns, `SEQUENCE` uses a DB sequence,
-  and `TABLE` uses a separate table to generate IDs. In Spring Boot, `IDENTITY` is commonly used with MySQL.
+- `AUTO` lets Hibernate pick the best strategy. 
+- `IDENTITY` uses auto-increment columns, 
+- `SEQUENCE` uses a DB sequence,
+- `TABLE` uses a separate table to generate IDs. In Spring Boot, `IDENTITY` is commonly used with MySQL.
 
 ### 9. What is `@Column` annotation used for?
 
@@ -71,8 +73,9 @@ private String email;
 
 ### 11. What is @Embedded and @Embeddable?
 
-- @Embeddable marks a class whose fields will be part of the owning entity. @Embedded includes it in the entity. For
-  example, an Address object can be embedded inside User without a separate table.
+- @Embeddable marks a class whose fields will be part of the owning entity. 
+- @Embedded includes it in the entity. 
+- For  example, an Address object can be embedded inside User without a separate table.
 
 ### 12. What is @Enumerated and how is it used?
 
@@ -220,6 +223,7 @@ User findByEmail(String email);
 - For update/delete queries, annotate the repository method with `@Modifying` and `@Transactional`. Example:
 
 ```java
+
 @Modifying
 @Transactional
 @Query(update

@@ -4,7 +4,7 @@
 
 # 3. you updated application.properties, but nothing changed. What might went wrong?
 
-# 4. Under heavy traffic, your service starts crashing? What are the likely bottlemnecks?
+# 4. Under heavy traffic, your service starts crashing? What are the likely bottlenecks?
 
 # 5. Spring complains about multiple beans of the same type? How do you resolve it cleanly?
 

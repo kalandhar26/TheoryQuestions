@@ -93,7 +93,7 @@ server.ssl.key-store-type=JKS
 
 ## 25. How do you design APIs that support extensibility without frequent breaking changes?
 
-## 26. What roled do HTTP status codes play in communicating API behavior to clients?
+## 26. What role do HTTP status codes play in communicating API behavior to clients?
 
 ## 27. How would you design APIs to support multi tenant systems?
 
