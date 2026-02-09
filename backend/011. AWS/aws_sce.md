@@ -1,6 +1,6 @@
 # 1. Compute & Application Hosting
 
-## Your Spring Boot app works locally but fails on EC2. ## How do you debug it?
+## Your Spring Boot app works locally but fails on EC2. How do you debug it?
 
 ## When would you choose EC2 over Elastic Beanstalk for Spring Boot?
 
@@ -30,11 +30,11 @@
 
 # 3. Auto Scaling & High Availability
 
-## Your app CPU spikes during peak hours. ## How do you auto-scale?
+## Your app CPU spikes during peak hours. How do you auto-scale?
 
 ## Difference between vertical and horizontal scaling in AWS?
 
-## How does Auto Scaling Group decide ## When to add/remove instances?
+## How does Auto Scaling Group decide When to add/remove instances?
 
 ## How do you design multi-AZ deployment for Spring Boot?
 
