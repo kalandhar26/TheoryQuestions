@@ -556,10 +556,12 @@
 - You use the transactional outbox pattern or Kafka’s consume-transform-produce with transactions. This ensures the DB
   write and offset commit happen in a single atomic unit, preventing both double processing and data loss.
 - There are only two sane patterns:
-- 1. Idempotent DB + At-least-once Kafka : i) Process message ii) DB enforces uniqueness (transaction ID, event ID)
-   iii) Commit offset after DB commit, Duplicates become harmless.
-- 2. Transactional Outbox / Inbox : i) Store event or processing state in DB ii) Commit DB transaction iii) Publish or
-   mark offset processed reliably
+-
+    1. Idempotent DB + At-least-once Kafka : i) Process message ii) DB enforces uniqueness (transaction ID, event ID)
+       iii) Commit offset after DB commit, Duplicates become harmless.
+-
+    2. Transactional Outbox / Inbox : i) Store event or processing state in DB ii) Commit DB transaction iii) Publish or
+       mark offset processed reliably
 - Two-phase commit with Kafka is a trap. Avoid it.
 - If your system cannot tolerate reprocessing, your system is brittle by design.
 
@@ -716,43 +718,303 @@
 
 ## 7.1 How do you handle temporary vs permanent failures?
 
+- You classify failures before retrying.
+- Temporary (retryable) : Network timeouts, Broker unavailable, DB connection pool exhaustion
+- Action: limited retries with backoff.
+- Permanent (non-retryable) : Validation errors, Schema mismatch, Business rule violations (insufficient funds)
+- Action: fail fast, route to DLQ, alert.
+- Blind retries turn permanent failures into infinite loops. If you can’t classify failure types, retries are a bug, not
+  a feature.
+
+- Imagine a debit event fails due to a network glitch.
+- Temporary failures (e.g., broker unavailable, DB timeout) should be retried.
+- Permanent failures (e.g., invalid account number, schema violation) must not be retried.
+- In banking, retrying permanent failures risks duplication or corruption.
+- Temporary failures are transient and recoverable.
+- Permanent failures require manual intervention or DLQ.
+- Differentiating them ensures resilience without chaos.
+- Banking systems must classify errors correctly.
+- Retry only when recovery is possible.
+- Permanent failures must be quarantined for audit.
+- This distinction is critical for compliance.
+
 ## 7.2 Retry topic vs dead-letter topic – differences?
+
+- Retry Topic:  Used for temporary failures, Message will be retried after a delay, Bounded retries
+- Dead-Letter Topic (DLT) : Used for permanent failures, Message will never be retried automatically, Requires manual
+  inspection or correction.
+- Retry topics are for resilience.
+- DLTs are for accountability.
+
+- Suppose a salary credit event fails due to DB timeout.
+- Retry topic reprocesses event after delay.
+- Dead-letter topic stores unrecoverable events.
+- Retry = temporary failures, DLQ = permanent failures.
+- In banking, retry ensures resilience under transient issues.
+- DLQ ensures bad events don’t block processing.
+- Retry topics allow controlled reprocessing.
+- DLQ provides audit trail for investigation.
+- Both are essential for safe event handling.
+- Proper routing prevents infinite loops.
+- Banking systems rely on both strategies.
 
 ## 7.3 How do you prevent infinite retry loops?
 
+- You enforce hard limits: Max retry count, Exponential backoff, Retry metadata in headers, Circuit breaker after
+  threshold
+- Infinite retries are denial-of-service attacks launched by your own code.
+- In banking, retries must be boring, predictable, and finite.
+
+- Imagine a malformed debit event keeps failing.
+- Blind retries cause infinite loops.
+- In banking, this blocks processing and risks duplication.
+- Use retry limits (e.g., 3 attempts).
+- After limit, move event to DLQ.
+- This prevents system overload.
+- Infinite loops can crash consumers.
+- Banking systems must enforce retry caps.
+- Retry policies balance resilience and safety.
+- DLQ ensures bad events are isolated.
+- Infinite retries are unacceptable in regulated systems.
+
 ## 7.4 How do you reprocess failed messages safely?
+
+- Suppose debit events land in DLQ.
+- Reprocessing must avoid duplication.
+- Use idempotent consumers to ensure safe retries.
+- Validate DB state before reapplying event.
+- In banking, double debit must be prevented.
+- Reprocessing requires careful audit.
+- DLQ events must be reviewed before replay.
+- Safe reprocessing ensures compliance.
+- Automation must include safeguards.
+- Banking systems must prioritize correctness over speed.
+- Reprocessing is a controlled recovery process.
+
+- Reprocessing must be: Manual or controlled, Idempotent, Auditable
+- Process: Fix root cause, Replay from retry topic or DLT, Ensure deduplication keys are enforced, Track reprocessing
+  outcome
+- If reprocessing can double debit, your system is unsafe by design.
 
 ## 7.5 What should never be retried in banking?
 
+- Imagine a debit event with invalid account number.
+- Retrying won’t fix invalid data.
+- In banking, retries must not apply to permanent errors.
+- Examples: invalid schema, duplicate transaction ID, fraud detection failure.
+- Retrying these risks corruption or fraud.
+- Such events must go to DLQ immediately.
+- Manual investigation is required.
+- Banking systems must distinguish retryable vs non-retryable.
+- Never retry events that violate business rules.
+- Compliance demands strict error handling.
+- Retrying permanent failures is dangerous.
+
+- Never retry: Business validation failures (insufficient funds)
+- Duplicate transaction IDs
+- Fraud-flagged events
+- Regulatory rule violations
+- Retrying this doesn’t increase success — it increases risk.
+- Some failures are final. Accept that.
+
 ## 7.6 How do you alert on repeated failures?
+
+- Suppose debit events repeatedly fail due to DB outage.
+- System must raise alerts after threshold.
+- Alerts notify ops teams for intervention.
+- In banking, repeated failures risk SLA breaches.
+- Monitoring tools track retry counts and DLQ volume.
+- Alerts ensure quick response to systemic issues.
+- Without alerts, failures may go unnoticed.
+- Banking systems must integrate monitoring + alerting.
+- Repeated failures indicate deeper problems.
+- Alerts protect against silent data loss.
+- Compliance requires proactive failure detection.
+
+- You alert on patterns, not single events:
+- Retry count threshold breached, DLT growth rate, Same error across partitions, Consumer lag + retries correlation
+- One failure is noise. Repeated failures are a signal.
+- If alerts fire only after customers complain, monitoring is cosmetic.
 
 # 8. Idempotency & Deduplication
 
 ## 8.1 Why idempotency is mandatory for Kafka consumers?
 
+- Imagine a debit event being retried after a consumer crash.
+- Without idempotency, the same debit could be applied twice.
+- In banking, this causes double deductions from customer accounts.
+- Idempotency ensures that processing the same event multiple times has no side effects.
+- Consumers must check if the event was already applied before committing.
+- This protects against retries, duplicates, and replay scenarios.
+- Idempotency is the cornerstone of financial correctness.
+- It guarantees resilience without risking duplication.
+- Banking systems cannot tolerate non-idempotent consumers.
+- Mandatory idempotency ensures trust and compliance.
+
+- Because at-least-once delivery is the default reality.
+- Consumers can crash after DB commit but before offset commit. Kafka will redeliver. That’s not a bug — that’s the
+  contract.
+- Without idempotency, retries and replays create double debit, double credit, and audit failures.
+- Idempotency is the only line of defense between correct reprocessing and financial corruption.
+
 ## 8.2 How do you detect duplicate events?
+
+- Suppose a salary credit event is retried due to timeout.
+- Consumers must detect duplicates before applying.
+- Use unique identifiers like transactionId or businessId.
+- Store processed IDs in DB or cache.
+- Check if ID already exists before applying.
+- In banking, this prevents double credits.
+- Deduplication ensures correctness under retries.
+- Duplicates often arise from network glitches.
+- Detection must be fast and reliable.
+- Proper dedupe logic ensures financial safety.
+- It’s a critical safeguard in event-driven banking.
+
+- You detect duplicates using a stable, business-meaningful identifier: Transaction ID, Payment reference, Event ID
+  generated at source
+- Offsets don’t help. Timestamps don’t help. Payload equality doesn’t help.
+- If the event does not carry a unique ID, it is not safe to consume.
 
 ## 8.3 Where should idempotency logic live – consumer or DB?
 
+- Imagine debit events processed by consumer.
+- Consumer-level dedupe checks prevent duplicate processing.
+- DB-level dedupe ensures persistence layer rejects duplicates.
+- In banking, DB is the ultimate source of truth.
+- Idempotency logic should live in DB for safety.
+- Consumer checks add efficiency but DB enforces correctness.
+- Dual-layer dedupe is best practice.
+- Consumer avoids unnecessary DB writes.
+- DB ensures no duplicates slip through.
+- Banking systems rely on DB-level guarantees.
+- Idempotency must be enforced at persistence boundary.
+
+- DB first. Always.
+- In-memory dedupe: Dies on restart, Breaks on scale-out, Fails under rebalance
+- The database is the only place that: Is durable, Is shared across instances, Can enforce uniqueness atomically
+- Consumer-side checks are optimizations. DB-level constraints are guarantees.
+
 ## 8.4 How do you use transactionId / businessId for dedupe?
+
+- Suppose fund transfer event has transactionId = TX123.
+- Consumer checks if TX123 already exists in DB.
+- If yes, skip processing.
+- If no, apply debit/credit and store TX123.
+- BusinessId ensures uniqueness across retries.
+- In banking, transactionId is mandatory for dedupe.
+- It prevents double debits or credits.
+- Deduplication relies on consistent identifiers.
+- Without IDs, duplicates cannot be detected.
+- TransactionId is the backbone of idempotency.
+- It’s a compliance requirement in financial systems.
+
+- You treat it as a natural idempotency key: Store it in a table with a UNIQUE constraint
+- Process event only if insert succeeds. If insert fails → duplicate → skip safely
+- This turns duplicates into no-ops.
+- If your DB schema doesn’t enforce uniqueness, idempotency is a suggestion, not a rule.
 
 ## 8.5 How long should dedupe records be stored?
 
+- Imagine storing transaction IDs for dedupe.
+- If stored too short, duplicates may slip through.
+- If stored too long, storage overhead increases.
+- In banking, retention depends on business rules.
+- Typically, dedupe records are stored until reconciliation completes.
+- For fund transfers, keep IDs for at least settlement window.
+- For salary credits, keep until payroll cycle ends.
+- Retention balances safety and efficiency.
+- Regulators may mandate minimum retention.
+- Deduplication records must align with compliance.
+- Storage duration is a critical design choice.
+
 ## 8.6 How do you handle duplicate replay during recovery?
+
+- Suppose consumer replays events after crash.
+- Replay may include already processed events.
+- Idempotency ensures duplicates are skipped.
+- Consumer checks transactionId against DB.
+- Only new events are applied.
+- In banking, replay must not cause double debits.
+- Recovery must be safe and consistent.
+- Idempotency makes replay reliable.
+- Without it, recovery risks corruption.
+- Duplicate replay is common in distributed systems.
+- Proper dedupe ensures resilience under recovery.
 
 # 9. Schema Management & Compatibility
 
 ## 9.1 Why schema evolution is risky in banking events?
 
+- Imagine a debit event schema changes field names.
+- Old consumers may fail to deserialize.
+- Debit events could be silently dropped.
+- In banking, this means missing transactions.
+- Schema evolution risks breaking compatibility.
+- Customers may see incorrect balances.
+- Regulators demand strict event integrity.
+- Schema changes must be backward-compatible.
+- Risk is high because financial events are mission-critical.
+- Evolution must be carefully governed.
+
 ## 9.2 How does Schema Registry help?
+
+- Suppose multiple services consume salary credit events.
+- Schema Registry stores versions centrally.
+- Producers and consumers validate compatibility.
+- Prevents breaking changes in event formats.
+- In banking, this ensures safe evolution of schemas.
+- Registry enforces backward/forward rules.
+- It acts as a contract between teams.
+- Without it, schema drift causes outages.
+- Registry makes event governance reliable.
+- It’s essential for financial event pipelines.
 
 ## 9.3 Backward vs forward compatibility – which is safer?
 
+- Imagine adding a new field “branchCode” to debit events.
+- Backward compatibility: old consumers still work.
+- Forward compatibility: new consumers can handle old events.
+- In banking, backward compatibility is safer.
+- Old consumers must never break.
+- Forward compatibility is useful but less critical.
+- Backward ensures historical events remain valid.
+- Compliance requires old data to stay readable.
+- Safer choice = backward compatibility.
+
 ## 9.4 What happens if consumer cannot deserialize event?
+
+- Suppose consumer fails to parse debit event.
+- Event is skipped or consumer crashes.
+- In banking, this means lost transactions.
+- Balances become inconsistent.
+- Compliance violations occur.
+- Consumers must handle deserialization errors gracefully.
+- DLQ stores failed events for investigation.
+- Schema Registry prevents such mismatches.
+- Safe handling ensures no silent data loss.
 
 ## 9.5 How do you version event schemas safely?
 
+- Imagine evolving salary credit schema.
+- Use version numbers in schema registry.
+- Add fields, never remove or rename.
+- Maintain backward compatibility.
+- Document schema changes clearly.
+- In banking, versioning ensures auditability.
+- Consumers can migrate gradually.
+- Safe versioning avoids outages.
+- Governance ensures compliance.
+
 ## 9.6 JSON vs Avro vs Protobuf – banking tradeoffs?
+
+- JSON: human-readable, flexible, but heavy.
+- Avro: compact, schema evolution support, widely used.
+- Protobuf: efficient, strongly typed, but less flexible.
+- In banking, Avro is preferred for schema evolution.
+- JSON is good for external APIs.
+- Protobuf suits high-performance internal pipelines.
+- Tradeoff = readability vs efficiency vs governance.
 
 # 10. Ordering & Consistency Guarantees
 
