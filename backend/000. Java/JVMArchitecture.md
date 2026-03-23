@@ -166,6 +166,5 @@ System.out.
 
 println("Class Name: "+clazz.getName());
 ```
-
 - This loads the arraylist class and prints its name.
 - Reflection is powerful but used carefully due to performance and security risks.
