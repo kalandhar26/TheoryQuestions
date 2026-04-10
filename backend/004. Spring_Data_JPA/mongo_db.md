@@ -600,8 +600,7 @@ Use MongoTemplate when:
 96. How to avoid N+1 problem?
 
 - Avoid multiple queries per request. Use embedding or $lookup where necessary. Batch queries instead of looping
-  queries.
-  Poor design leads to performance issues.
+  queries. Poor design leads to performance issues.
 
 97. Design audit logging system
 
@@ -611,14 +610,12 @@ Use MongoTemplate when:
 98. Handle duplicate message processing
 
 - Use idempotency keys. Store processed message IDs. Use upsert operations. Ensure duplicate events don’t create
-  duplicate
-  data. Critical in event-driven systems.
+  duplicate data. Critical in event-driven systems.
 
 99. Design caching strategy
 
 - Use in-memory cache (Redis) for frequent reads. Cache aggregated data. Invalidate cache on updates. MongoDB alone is
-  not
-  enough for high-performance reads. Cache reduces DB load.
+  not enough for high-performance reads. Cache reduces DB load.
 
 100. Debug production latency issue
 
